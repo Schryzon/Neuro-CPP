@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.20)
-project(GeminiClient)
+cmake_minimum_required(VERSION 3.50)
+project(Neuro-CPP)
 
 # → Use C++17 (or newer)
 set(CMAKE_CXX_STANDARD 17)
@@ -25,17 +25,17 @@ FetchContent_MakeAvailable(curlpp nlohmann_json)
 
 
 # --- Define executable ---
-add_executable(GeminiClient
+add_executable(Neuro-CPP
     src/main.cpp
 )
 
 # --- Include dirs for header-only stuff ---
-target_include_directories(GeminiClient PRIVATE
+target_include_directories(Neuro-CPP PRIVATE
     ${CMAKE_SOURCE_DIR}/include
 )
 
 # --- Link libraries ---
-target_link_libraries(GeminiClient PRIVATE
+target_link_libraries(Neuro-CPP PRIVATE
     CURL::libcurl
     curlpp::curlpp
     nlohmann_json::nlohmann_json
