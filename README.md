@@ -17,6 +17,6 @@ This project is created as a requirement to complete the Algorithms and Programm
 |                 | `dotenv`        | Secret environment variables                   |
 
 ## Contributors
-I Nyoman Widiyasa Jayananda ([Schryzon](https://github.com/Schryzon)) - 0053
-I Kadek Mahesa Permana Putra ([Vuxyn](https://github.com/Vuxyn)) - 0052
-Samara Wardasadiya ([samarawards](https://github.com/samarawards)) - 0023
+- I Nyoman Widiyasa Jayananda ([Schryzon](https://github.com/Schryzon)) - 0053
+- I Kadek Mahesa Permana Putra ([Vuxyn](https://github.com/Vuxyn)) - 0052
+- Samara Wardasadiya ([samarawards](https://github.com/samarawards)) - 0023
