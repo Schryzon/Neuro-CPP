@@ -9,6 +9,33 @@
 #include "curlpp/Types.hpp"
 #include "nlohmann/json.hpp"
 
+/*
+Roxas
+Ventus
+Hatsuki
+Reina
+Neuro-CPP
+*/
+
+/*
+pesan
+
+content
+creator
+model
+
+
+chat -> history
+judul
+creator
+struct pesan array
+
+history chat -> array of struct dari pesan
+for loopin
+pesan[i].content 
+pesan[i].creator
+*/
+
 nlohmann::json get_answer(curlpp::Easy &request, std::string &persona, std::string &input){
     std::getline(std::cin, persona);
     std::getline(std::cin, input);
@@ -55,14 +82,15 @@ nlohmann::json get_answer(curlpp::Easy &request, std::string &persona, std::stri
 int main(){
     try{
         // 1) Load API key
-        std::string API_KEY = dotenv::getenv("GEMINI_API_KEY");
+        dotenv::init(".env"); // DO NOT CHANGE THIS
+        auto API_KEY = dotenv::getenv("GEMINI_API_KEY");
         curlpp::Cleanup cleanup;
         curlpp::Easy request;
 
         // 2) Build URL
         const std::string url =
             "https://generativelanguage.googleapis.com/v1beta/models/"
-            "gemini-2.0-flash:generateContent?key=AIzaSyBFlEiiVLsHOTiLYCAnnQff2ql20DiW-rU";
+            "gemini-2.0-flash:generateContent?key=" + API_KEY;
         request.setOpt<curlpp::options::Url>(url);
         std::string personality;
         std::string input;
