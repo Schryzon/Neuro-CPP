@@ -56,7 +56,6 @@ nlohmann::json get_answer(curlpp::Easy &request, std::string &persona, std::stri
         }}
     };
     std::string body = payload.dump();
-
     // 4) Set headers
     std::list<std::string> headers = {
         "Content-Type: application/json"
@@ -99,7 +98,6 @@ int main(){
             auto json = get_answer(request, personality, input);
             // Gemini returns an array of candidates; take the first one's content
             std::string ai_answer = json["candidates"][0]["content"]["parts"][0]["text"].get<std::string>();
-
             // 9) Print it out
             std::cout << "Gemini says: " << ai_answer << "\n";
         }while(input != "exit");
@@ -120,6 +118,5 @@ int main(){
         std::cerr << "Unexpected error: " << e.what() << "\n";
         return 1;
     }
-
     return 0;
 }
