@@ -1,0 +1,26 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "CMake: build project",
+      "type": "shell",
+      "command": "cmake",
+      "args": [
+        "--build", "build",
+        "--config", "Release"
+      ],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      },
+      // Let VSCode know when the build is “finished”
+      "problemMatcher": [
+        "$msCompile", "$gcc"    // or adjust for GCC/GDB
+      ],
+      // If you want it to run even if nothing changed:
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      }
+    }
+  ]
+}
