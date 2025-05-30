@@ -35,7 +35,9 @@ for loopin
 pesan[i].content 
 pesan[i].creator
 */
-
+void say(){
+    std::cout << "Hello" << std::endl;
+}
 nlohmann::json get_answer(curlpp::Easy &request, std::string &persona, std::string &input){
     std::getline(std::cin, persona);
     std::getline(std::cin, input);
@@ -100,6 +102,7 @@ int main(){
             std::string ai_answer = json["candidates"][0]["content"]["parts"][0]["text"].get<std::string>();
             // 9) Print it out
             std::cout << "Gemini says: " << ai_answer << "\n";
+            say();
         }while(input != "exit");
     }
     catch (const curlpp::RuntimeError & e) {
