@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.60)
 project(GeminiClient)
 
 # → Use C++17 (or newer)
