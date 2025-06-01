@@ -70,6 +70,11 @@ struct Neuro{
     }
 };
 
+void line(int length, char c){
+	for(int i = 0; i < length; i++) std::cout << c;
+	std::cout << std::endl;
+} 
+
 nlohmann::json prep_payload(const Chat *chat){
     nlohmann::json contents = nlohmann::json::array(); // For Neuro's memory
     for(auto message : chat->messages){
@@ -214,6 +219,19 @@ void init_ai(Neuro* neuro, Chat &current_chat){
     system("cls");
 }
 
+void chat_limiter(std::string& text){
+    int count = 0;
+    for(size_t i = 0; i < text.size(); i++){
+        std::cout << text[i];
+        count++;
+        if(count >= 73 && text[i] == ' '){
+            std::cout << std::endl;
+            count = 0;
+        }
+        Sleep(30);
+    }
+    std::cout << std::endl;
+}
 // First chat
 void new_chat(Neuro* neuro){
     std::string name, ai_name, persona;
@@ -232,8 +250,14 @@ void new_chat(Neuro* neuro){
         ai_name = "Neuro";
         persona = dotenv::getenv("DEFAULT_PERSONALITY");
     }
-	std::string prompt, ai_answer;
+	std::string prompt, ai_answer; bool first = true;
 	do{
+        if(first){
+            banner("\033[1;32m");
+            first = false;
+        }else{
+            line(73, '-');
+        }
         std::string display_name = "["+name+"]";
         std::string display_prompt = display_name +" (type 'exit' to go back): ";
 		prompt = input(display_prompt);
@@ -255,7 +279,9 @@ void new_chat(Neuro* neuro){
         }
 		cursor_up;
         std::string display_ai_name = "["+ai_name+"]: ";
-        std::cout<<display_ai_name<<ai_answer<<std::endl<<std::endl;
+        std::cout <<display_ai_name;
+        chat_limiter(ai_answer);
+        //std::cout<<display_ai_name<<ai_answer<<std::endl<<std::endl;
 		if(neuro->id != -1){
             append_message(neuro, "model", ai_answer);
         }
@@ -270,10 +296,6 @@ void new_chat(Neuro* neuro){
     return;
 }
 
-void line(int length, char c){
-	for(int i = 0; i < length; i++) std::cout << c;
-	std::cout << std::endl;
-}
 
 void banner(const std::string& color) {
 	line(73, '=');
