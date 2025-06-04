@@ -18,10 +18,9 @@ This project is created as a requirement to complete the University of Mataram's
 |-----------------|-----------------|------------------------------------------------|
 | **STL**         | -               | Built-in C++ standard library components       |
 | (Standard)      | `<iostream>`    | Input/output stream (STDIN & STDOUT)           |
-|                 | `<sstream>`     | String streams                                 |
+|                 | `<sstream>`     | String streams for receiving HTTP responses    |
 |                 | `<vector>`      | Dynamic arrays                                 |
 |                 | `<conio.h>`     | Keyboard-based menu navigations                |
-|                 | `<Windows.h>`   | Only for `sleep()` function                    |
 |                 | `<iomanip>`     | To centralize UI elements                      |
 | **Third-party** | -               | Custom-made libraries installed through `vcpkg`|
 |    (Custom)     | `cURLpp`        | C++ wrapper for `libcurl` for HTTP requests    |
@@ -34,5 +33,5 @@ This project is created as a requirement to complete the University of Mataram's
 - Samara Wardasadiya ([samarawards](https://github.com/samarawards)) - 0023
 
 ## Current Status
-- ❌ | Pending acceptance from assistant YNK.
+- ✅ | Approved by assistant YNK and Senior Kholilluloh.
 - 🚧 | Currently in development process.

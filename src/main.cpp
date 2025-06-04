@@ -8,17 +8,15 @@
 #include "curlpp/Easy.hpp"
 #include "curlpp/Options.hpp"
 #include "curlpp/Option.hpp"
-#include "curlpp/Types.hpp"
 #include "nlohmann/json.hpp"
-#define UP 72
-#define DOWN 80
-#define RIGHT 77
-#define LEFT 75
-#define ENTER 13
+const int UP = 72, DOWN = 80;
+const int RIGHT = 77, LEFT = 75, ENTER = 13;
+const int BACKSPACE = 8;
 #define cursor_up std::cout<<"\x1b[A\x1b[2K"
 #define flsh std::cin.ignore(9999, '\n')
 #define failed std::cin.fail()
 void banner(const std::string& color);
+void chat_limiter(std::string&);
 
 std::string input(const std::string &prompt){
     std::string in; std::cout<<prompt;
@@ -44,12 +42,14 @@ struct Message{
     std::string role; // Either "user" or "model" TOLONG JANGAN GONTA GANTI
 	std::string content;
 };
+
 struct Chat{
     std::string ai_name = "Neuro";
     std::string personality = "";
 	std::string title;
 	std::vector<Message> messages = {}; // DO NOT INIT Message{}
 };
+
 struct User{
     std::string username;
     std::string password;
@@ -57,6 +57,7 @@ struct User{
     int total_chat;
     int user_id;
 };
+
 struct Neuro{
 	std::vector<User> users;
 	int id = -1;
@@ -65,6 +66,11 @@ struct Neuro{
     Chat &get_current_chat(){
         return users[id].chats[users[id].total_chat];
     }
+
+    Chat &get_current_chat(int idx){ // Overload for indexing
+        return users[id].chats[idx];
+    }
+
     User &get_current_user(){
         return users[id];
     }
@@ -184,23 +190,82 @@ std::string get_answer(Neuro *neuro, const Chat *chat, std::string &persona, std
 }
 
 // For memory
-void append_message(Neuro *neuro, std::string sender, std::string content){
+void append_message(Neuro *neuro, std::string role, std::string content){
     auto& current_user = neuro->users[neuro->id];
-	current_user.chats[current_user.total_chat].messages.push_back({sender, content});
+	current_user.chats[current_user.total_chat].messages.push_back({role, content});
 }
 
-void history(Neuro* neuro){
-    int pil;
-    auto& current_user = neuro->users[neuro->id];
-    for (int i=0; i<current_user.total_chat; i++){
-        std::cout<< i+1 << ". " << current_user.chats[i].title << std::endl;
+void continue_message(Neuro *neuro, int &pil, std::string role, std::string content){
+    auto &current_user = neuro->users[neuro->id];
+    current_user.chats[pil].messages.push_back({role, content});
+}
+
+// continue chat
+void continue_chat(Neuro* neuro, int &pil){
+    std::string name, ai_name, persona;
+    auto GEMINI_API_KEY = dotenv::getenv("GEMINI_API_KEY");
+    auto &user = neuro->get_current_user();
+    auto &current_chat = neuro->get_current_chat(pil);
+    name = user.username;
+    ai_name = current_chat.ai_name;
+    persona = current_chat.personality;
+	std::string prompt, ai_answer;
+    for(auto message : current_chat.messages){
+        if(message.role == "user")
+            std::cout << "[" << user.username << "]: " << message.content << std::endl;
+        else
+            std::cout<<"["<<current_chat.ai_name<<"]: "<<message.content<<std::endl;
     }
-    std::cout<< "Select title: "; std::cin>>pil; std::cin.ignore();
-    pil--;
-    /*for (int i=0; i<current_user.chats[pil].messages.size(); i++){
-        std::cout << "[" << current_user.chats[pil].messages[i].sender << "] : " << current_user.chats[pil].messages[i].content << std::endl;
-    }*/
+	do{
+        line(73, '-');
+        std::string display_name = "["+name+"]";
+        std::string display_prompt = display_name +" (type 'exit' to go back): ";
+		prompt = input(display_prompt);
+        if (prompt == "exit" || prompt == "Exit") break;
+        cursor_up; std::cout<<display_name<<": "<<prompt;
+		std::cout<<std::endl<<std::endl;
+        std::cout<<ai_name<<" is thinking...\n";
+        continue_message(neuro, pil, "user", prompt);
+        ai_answer = get_answer(neuro, &current_chat, persona, GEMINI_API_KEY);
+		cursor_up;
+        std::string display_ai_name = "["+ai_name+"]: ";
+        std::cout <<display_ai_name;
+        chat_limiter(ai_answer);
+        continue_message(neuro, pil, "model", ai_answer);
+	}while(prompt != "exit" && prompt != "Exit");
+    std::cout<<"Returning to the previous menu..."<<std::endl;
     system("pause");
+    return;
+}
+void history(Neuro* neuro){
+    int pil, ans;
+    auto& current_user = neuro->users[neuro->id];
+    if (current_user.total_chat == 0) return;
+    do {
+        system("cls");
+        banner("\033[1;32m");
+        for (int i=0; i<current_user.total_chat; i++){
+            std::cout<< i+1 << ". " << current_user.chats[i].title << std::endl;
+        }
+        ans = input("1. Continue Chat\n2. Delete Chat\n3. Back\n>> ", 1, 3);
+        if(ans==1 || ans==2){
+            pil = input("Select title: ", 1, current_user.total_chat);
+            pil--;
+        }
+        system("cls");
+        banner("\033[1;32m");
+        switch(ans){
+            case 1 : {
+                continue_chat(neuro, pil);
+                break;
+            } 
+            case 2 : {
+                current_user.chats.erase(current_user.chats.begin() + pil);
+                current_user.total_chat--;
+            }
+            default : return;
+        }
+    } while (ans == 1 || ans == 2);
 }
 
 void init_ai(Neuro* neuro, Chat &current_chat){
@@ -214,7 +279,7 @@ void init_ai(Neuro* neuro, Chat &current_chat){
     }if(current_chat.personality == "" || current_chat.personality.empty()){
         current_chat.personality = dotenv::getenv("DEFAULT_PERSONALITY");
     }
-    std::cout<<"Initialization complete, you may now begin your chat with "<<current_chat.ai_name<<"\n";
+    std::cout<<"Initialization complete, you may now begin your chat with "<<current_chat.ai_name<<".\n";
     system("pause");
     system("cls");
 }
@@ -232,6 +297,7 @@ void chat_limiter(std::string& text){
     }
     std::cout << std::endl;
 }
+
 // First chat
 void new_chat(Neuro* neuro){
     std::string name, ai_name, persona;
@@ -385,59 +451,63 @@ int show_menu(Neuro* neuro, std::string options[], int num_choice, std::string t
                 choice++;
                 if (choice >= num_choice) choice = 0;
             }
-        } else if (key == 13) {
+        } else if (key == ENTER) {
             break;
         }
     }
     return choice;
 }
 
+int* get_paddings(const std::string &text, int width = 73) {
+    int* pads = new int[2]; 
+    int total = width - text.length();
+    pads[0] = total / 2;
+    pads[1] = total - pads[0];
+    return pads;
+}
+
 int confirm(std::string options[], int num_choice, std::string text) {
-    int choice = 0;
-    int key;
+    int choice = 0, key;
+    const int box_width = 71;
+    const int half = (box_width / 2) - 2;
+
     do {
         system("cls");
         banner("\033[1;34m");
         if (!text.empty()) {
-            center_text(text, 71);
-            line(73, '=');
+            center_text(text, box_width);
+            line(box_width + 2, '=');
         }
-        int half = (71 / 2)-2;
-        int left_pad = (half - options[0].length()) / 2;
-        int rest_left = (half - options[0].length()) % 2;
-        int right_pad = (half - options[1].length()) / 2;
-        int rest_right = (half - options[1].length()) % 2;
+
+        int* pad_left = get_paddings(options[1], half);
+        int* pad_right = get_paddings(options[0], half);
+
         std::cout << "|";
-        for (int i = 0; i < left_pad; i++) std::cout << " ";
-        if (choice == 0) std::cout << "[\033[1;34m";
-        else std::cout << " ";
-        std::cout << options[1];
-        if (choice == 0) std::cout << "\033[0m]";
-        else std::cout << " ";
-        for (int i = 0; i < left_pad + rest_left; i++) std::cout << " ";
+        std::cout << std::string(pad_left[0], ' ');
+        if (choice == 0) std::cout << "[\033[1;34m" << options[1] << "\033[0m]";
+        else std::cout << " " << options[1] << " ";
+        std::cout << std::string(pad_left[1], ' ');
         std::cout << "|";
-        for (int i = 0; i < right_pad; i++) std::cout << " ";
-        if (choice == 1) std::cout << "[\033[1;34m";
-        else std::cout << " ";
-        std::cout << options[0];
-        if (choice == 1) std::cout << "\033[0m]";
-        else std::cout << " ";
-        for (int i = 0; i < right_pad + rest_right; i++) std::cout << " ";
+        std::cout << std::string(pad_right[0], ' ');
+        if (choice == 1) std::cout << "[\033[1;34m" << options[0] << "\033[0m]";
+        else std::cout << " " << options[0] << " ";
+        std::cout << std::string(pad_right[1], ' ');
         std::cout << "|" << std::endl;
-        line(73, '=');
+
+        line(box_width + 2, '=');
+
+        delete[] pad_left;
+        delete[] pad_right;
+
         key = getch();
-        if (key == 224 || key == 0) { 
+        if (key == 224 || key == 0) {
             key = getch();
-            if (key == LEFT) {
-                choice = 0; 
-            } else if (key == RIGHT) {
-                choice = 1; 
-            }
+            if (key == LEFT)  choice = 0;
+            if (key == RIGHT) choice = 1;
         } else if (key == ENTER) {
-            return choice; 
+            return choice;
         }
     } while (true);
-    return choice;
 }
 
 void user_interface(Neuro* neuro){
@@ -484,7 +554,7 @@ void signup(Neuro* neuro){
             neuro->total_user++;
 			std::cout<<"Account created successfully\n";
 		}
-		std::string options[] = {"No", "Yes"};
+		std::string options[] = {"Back", "Continue"};
 		int result = confirm(options, 2, "Proceed to user dashboard?");
 		if (result == 0) {
     		user_interface(neuro);
@@ -498,21 +568,26 @@ void signup(Neuro* neuro){
 void login(Neuro* neuro){
 	bool success = false;
 	banner("\033[0m");
-	std::string name, password = "";
+	std::string name;
 	char ch;
+    char char_password[100];
+    int len = 0;
 	name = input("Enter your name: ");
 	std::cout << "Enter Password: \n";
-	while ((ch = getch()) != 13) {
-        if (ch == 8) { 
-            if (!password.empty()) {
-                password.pop_back();
+	while ((ch = getch()) != ENTER) {
+        if (ch == BACKSPACE) { 
+            if (len > 0 && len < 100) {
+                len--;
                 std::cout << "\b \b";
             }
         }else {
-            password.push_back(ch);
+            char_password[len++] = ch;
             std::cout << '*';
         }
     }
+    char_password[len] = '\0';
+    std::string password(char_password);
+
     std::cout<<std::endl;
 	for(int i=0; i<neuro->users.size(); i++){
 		if(neuro->users[i].username == name){
@@ -553,7 +628,7 @@ void main_menu(Neuro* neuro){
 }
 
 void loading(Neuro* neuro){
-    std::vector<std::string> warna = {
+    std::string warna[] = {
         "\033[91m", "\033[92m", "\033[93m",
         "\033[94m", "\033[95m", "\033[96m",
         "\033[1;33m", "\033[1;31m"
@@ -564,7 +639,7 @@ void loading(Neuro* neuro){
             system("cls");
             banner(warna[color_idx]);
             color_idx = (color_idx + 1) % 8;
-            if(i == 100) std::cout << std::setw(43) << "Loading Complete!" << std::endl;
+            if(i == 100) std::cout << std::setw(43) << "Hello World!" << std::endl;
             else std::cout << std::setw(43) << "Loading ..." << std::endl;
         }
         progress_bar(i);
