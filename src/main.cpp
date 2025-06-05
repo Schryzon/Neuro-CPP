@@ -511,6 +511,11 @@ int confirm(std::string options[], int num_choice, std::string text) {
         std::cout << "|" << std::endl;
 
         line(box_width + 2, '=');
+        if (num_choice == 3) {
+            if (choice == 2) center_text ("[\033[1;34m" + options[2] + "\033[0m] ", 82);
+            else center_text(options[2], 71);
+            line(73, '=');
+        }
         
         delete[] pad_left;
         delete[] pad_right;
@@ -518,8 +523,12 @@ int confirm(std::string options[], int num_choice, std::string text) {
         key = getch();
         if (key == 224 || key == 0) {
             key = getch();
-            if (key == LEFT)  choice = 0;
-            if (key == RIGHT) choice = 1;
+            if (key == LEFT)  {
+                choice = (choice == 0) ? num_choice-1 : choice - 1;
+            }
+            if (key == RIGHT) {
+                choice = (choice == num_choice-1) ? 0 : choice + 1;
+            }
         } else if (key == ENTER) {
             return choice;
         }
@@ -549,16 +558,81 @@ void help(){
 ➤ Exit 🔙
      → Type "3" to return to main menu.
 
+⚙️ 3. ACCOUNT - Manage account
+➤ Update Profile 🔐
+     → Choose data to update.
+➤ Delete Account 🗑️
+     → Delete your account and erase all your data.
+
 ➭ Use ↑ / ↓ to navigate. Press Enter to select.
 )";
     system("pause");
 }
 
+int account(Neuro *neuro){
+    auto& current_user = neuro->users[neuro->id];
+    int result;
+    //check most chatted
+    std::string title_biggest;
+    int biggest = 0;
+    for (int i=0; i<current_user.total_chat; i++){
+        if (current_user.chats[i].messages.size() > biggest){
+            biggest = current_user.chats[i].messages.size();
+            title_biggest = current_user.chats[i].title;
+        }
+    }
+    do {
+        system("cls"); banner("\033[0m");
+        line(73, '=');
+        std::cout << "Username\t: " << current_user.username << std::endl
+        << "Password\t: " << current_user.password << std::endl
+        << "Total Chat\t: " << current_user.total_chat << " title(s)" << std::endl
+        << "The Most Chatted: " << title_biggest << std::endl;
+        system("pause");
+        std::string options[] = {"Delete Account", "Update Profile", "Back"};
+        result = confirm(options, 3, "Manage your Account");
+        if (result == 0){
+            std::string options[] = {"Change Password", "Change Username", "Back"};
+            int ans = confirm(options, 3, "Update Profile ");
+            if (ans == 0){
+                //bool success;
+                do{
+                    bool success = true;
+                    std:: string new_name = input("Enter new username: "); 
+                    for(auto user : neuro->users){
+                        if(user.username == new_name){
+                            std::cout << "Username not available!" << std::endl;
+                            success = false; break;
+                        }
+                    }
+                    if (success) {
+                        current_user.username = new_name;
+                        std::cout<<"Your username is already updated\n";
+                        break;
+                    }
+                }while (true);
+            } else if (ans == 1){
+                bool success = true;
+                current_user.password = input("Enter new password: ");
+                std::cout<<"Your password is already updated\n";
+                system("pause");
+            } else if (ans == 2) continue;
+        } else if (result == 1){
+            neuro->users.erase(neuro->users.begin() + current_user.user_id);
+            neuro->total_user--;
+            system("cls"); banner("\033[0m");
+            center_text("Account Deleted Successfully", 71);
+            line(73, '='); system("pause"); 
+            return result;
+        } else if (result == 2) return 0;
+    }while (result != 2);
+}
+
 void user_interface(Neuro* neuro){
 	banner("\033[0m");
     line(73, '=');
-    const int num_choice = 4;
-    std::string options[] = {"NeuroChat", "Chat History", "Guide", "Log Out"};
+    const int num_choice = 5;
+    std::string options[] = {"NeuroChat", "Chat History", "Guide", "Account", "Log Out"};
     int choice;
     do {
         auto& current_user = neuro->users[neuro->id];
@@ -571,21 +645,13 @@ void user_interface(Neuro* neuro){
             history(neuro);
         } else if(choice == 2) {
             help();
-        } else if(choice == 3) {
+        } else if (choice == 3){
+            int result = account(neuro); 
+            if (result == 1) choice = 4; //kondisi delete account           
+        }else if(choice == 4) {
             neuro->id = -1;
-            std::string options[] = {"No", "Yes"};
-            int result = confirm(options, 2, "Delete Account?");
-            if(result == 0){
-                neuro->users.erase(neuro->users.begin() + current_user.user_id);
-                neuro->total_user--;
-                system("cls");
-                banner("\033[1;34m");
-                center_text("Account Deleted Successfully", 71);
-                line(73, '=');
-                return;
-            }else if(result == 1) return;
         }
-    } while(choice != 3);
+    } while(choice != 4);
     system("cls");
 }
 
