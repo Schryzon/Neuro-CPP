@@ -510,6 +510,34 @@ int confirm(std::string options[], int num_choice, std::string text) {
     } while (true);
 }
 
+void help(){
+    banner("\033[0;32m");
+    center_text("💡 HELP CENTER 💡", 75);
+    line(73, '=');
+    std::cout<<R"(
+ 🧠 1. NEUROCHAT - Start a new chat
+   ➤ Custom AI Name
+     → Set your AI’s name or press enter to use default.
+   ➤ Custom AI Personality
+     → Choose traits or press enter to skip.
+   ➤ Start Chat 💬
+     → Begin chatting with Neuro.
+   ➤ Exit 🚪
+     → Type "exit" to end chat.
+
+📁 2. CHAT HISTORY - Manage previous sessions
+   ➤ Continue Chat 🔁
+     → Type "1" then choose a chat title to continue.
+   ➤ Delete Chat 🗑️
+     → Type "2" then select a chat title to delete.
+   ➤ Exit 🔙
+     → Type "3" to return to main menu.
+
+➭ Use ↑ / ↓ to navigate. Press Enter to select.
+)";
+    system("pause");
+}
+
 void user_interface(Neuro* neuro){
 	banner("\033[0m");
     line(73, '=');
@@ -526,7 +554,7 @@ void user_interface(Neuro* neuro){
         } else if(choice == 1) {
             history(neuro);
         } else if(choice == 2) {
-            //help();
+            help();
         } else if(choice == 3) {
             neuro->id = -1;
         }
