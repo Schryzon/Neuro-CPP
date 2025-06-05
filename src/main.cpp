@@ -16,13 +16,14 @@ const int BACKSPACE = 8;
 #define flsh std::cin.ignore(9999, '\n')
 #define failed std::cin.fail()
 void banner(const std::string& color);
+int confirm(std::string x[], int y, std::string z);
 
 void chat_limiter(std::string& text, bool typing = true){
     int count = 0;
     for(size_t i = 0; i < text.size(); i++){
         std::cout << text[i];
         count++;
-        if(count > 70 && text[i] == ' '){
+        if(count >= 70 && text[i] == ' '){
             std::cout << std::endl;
             count = 0;
         }
@@ -259,10 +260,22 @@ void continue_chat(Neuro* neuro, int &pil){
     system("pause");
     return;
 }
+//COMMIT
+void new_chat(Neuro* neuro);
 void history(Neuro* neuro){
     int pil, ans;
     auto& current_user = neuro->users[neuro->id];
-    if (current_user.total_chat == 0) return;
+    if (current_user.total_chat == 0){
+        std::string options[] = {"Back", "Start New Chat"};
+        int result = confirm(options, 2, "No Chat History Yet!");
+        system("cls");
+        if(result == 0){
+            new_chat(neuro);
+            return;
+        }else if(result == 1){
+            return;
+        }
+    }
     do {
         system("cls");
         banner("\033[1;34m");
@@ -370,7 +383,7 @@ void new_chat(Neuro* neuro){
         user.chats.push_back(Chat{});
         user.total_chat++;
     }
-    std::cout<<"Returning to the previous menu..."<<std::endl;
+    std::cout<<"\nReturning to the previous menu..."<<std::endl;
     system("pause");
     return;
 }
@@ -498,7 +511,7 @@ int confirm(std::string options[], int num_choice, std::string text) {
         std::cout << "|" << std::endl;
 
         line(box_width + 2, '=');
-
+        
         delete[] pad_left;
         delete[] pad_right;
 
@@ -518,22 +531,22 @@ void help(){
     center_text("💡 HELP CENTER 💡", 75);
     line(73, '=');
     std::cout<<R"(
- 🧠 1. NEUROCHAT - Start a new chat
-   ➤ Custom AI Name
+🧠 1. NEUROCHAT - Start a new chat
+➤ Custom AI Name
      → Set your AI's name or press enter to use default.
-   ➤ Custom AI Personality
+➤ Custom AI Personality
      → Choose traits or press enter to skip.
-   ➤ Start Chat 💬
+➤ Start Chat 💬
      → Begin chatting with Neuro.
-   ➤ Exit 🚪
+➤ Exit 🚪
      → Type "exit" to end chat.
 
 📁 2. CHAT HISTORY - Manage previous sessions
-   ➤ Continue Chat 🔁
+➤ Continue Chat 🔁
      → Type "1" then choose a chat title to continue.
-   ➤ Delete Chat 🗑️
+➤ Delete Chat 🗑️
      → Type "2" then select a chat title to delete.
-   ➤ Exit 🔙
+➤ Exit 🔙
      → Type "3" to return to main menu.
 
 ➭ Use ↑ / ↓ to navigate. Press Enter to select.
@@ -548,8 +561,8 @@ void user_interface(Neuro* neuro){
     std::string options[] = {"NeuroChat", "Chat History", "Guide", "Log Out"};
     int choice;
     do {
-        auto& current_user = neuro->users[neuro->id].username;
-    	std::string title = "H E L L O " + current_user + "!";
+        auto& current_user = neuro->users[neuro->id];
+    	std::string title = "H E L L O " + current_user.username + "!";
         choice = show_menu(neuro, options, num_choice, title);
         system("cls");
         if(choice == 0) {
@@ -560,19 +573,31 @@ void user_interface(Neuro* neuro){
             help();
         } else if(choice == 3) {
             neuro->id = -1;
+            std::string options[] = {"No", "Yes"};
+            int result = confirm(options, 2, "Delete Account?");
+            if(result == 0){
+                neuro->users.erase(neuro->users.begin() + current_user.user_id);
+                neuro->total_user--;
+                system("cls");
+                banner("\033[1;34m");
+                center_text("Account Deleted Successfully", 71);
+                line(73, '=');
+                return;
+            }else if(result == 1) return;
         }
     } while(choice != 3);
     system("cls");
 }
 
 void signup(Neuro* neuro){
-	banner("\033[0m");
-    center_text("REGISTER NEW IDENTITY", 71);
-    line(73, '=');
+    system("cls");
 	std::string new_name, new_password;
 	bool success;
 	do{
-		success = true;
+        banner("\033[0m");
+        center_text("REGISTER IDENTITY", 71);
+        line(73, '=');
+        success = true;
 		new_name = input("Enter Name: ");
 		for(auto user : neuro->users){
 			if(user.username == new_name){
@@ -607,6 +632,19 @@ void login(Neuro* neuro){
 	char ch;
     char char_password[100];
     int len = 0;
+    if(neuro->total_user == 0){
+        center_text("No Account Registered Yet! ", 71);
+        line(73, '=');
+        system("pause");
+        std::string options[] = {"Back", "Register"};
+		int result = confirm(options, 2, "Proceed to Register?");
+		if (result == 0) {
+    		signup(neuro);
+    		return;
+		} else if (result == 1) {
+    		return;
+		}
+    }
 	name = input("Enter your name: ");
 	std::cout << "Enter Password: ";
 	while ((ch = getch()) != ENTER) {
@@ -665,7 +703,7 @@ void main_menu(Neuro* neuro){
 void loading(Neuro* neuro){
     std::string warna[] = {
         "\033[91m", "\033[92m", "\033[93m",
-        "\033[94m", "\033[95m", "\033[96m",
+        "\033[94m", "\033[95m", "\033[1;34m",
         "\033[1;33m", "\033[1;31m"
     };
     int color_idx = 0;
