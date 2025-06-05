@@ -16,7 +16,30 @@ const int BACKSPACE = 8;
 #define flsh std::cin.ignore(9999, '\n')
 #define failed std::cin.fail()
 void banner(const std::string& color);
-void chat_limiter(std::string&);
+
+void chat_limiter(std::string& text, bool typing = true){
+    int count = 0;
+    for(size_t i = 0; i < text.size(); i++){
+        std::cout << text[i];
+        count++;
+        if(count > 70 && text[i] == ' '){
+            std::cout << std::endl;
+            count = 0;
+        }
+        if(typing) Sleep(30);
+    }
+    std::cout << std::endl;
+}
+
+void center_text(std::string title, int length = 73){
+	int padding = (length - title.length())/2;
+	int remain = (length - title.length())/2 % 2;
+	std::cout << "|";
+	for(int i = 0; i < padding; i++) std::cout << " ";
+	std::cout << title;
+	for(int i = 0; i < padding + remain; i++) std::cout << " ";
+	std::cout << "|" << std::endl;
+}
 
 std::string input(const std::string &prompt){
     std::string in; std::cout<<prompt;
@@ -211,10 +234,9 @@ void continue_chat(Neuro* neuro, int &pil){
     persona = current_chat.personality;
 	std::string prompt, ai_answer;
     for(auto message : current_chat.messages){
-        if(message.role == "user")
-            std::cout << "[" << user.username << "]: " << message.content << std::endl;
-        else
-            std::cout<<"["<<current_chat.ai_name<<"]: "<<message.content<<std::endl;
+        if(message.role == "user") std::cout << "[" << user.username << "]: ";
+        else std::cout<<"["<<current_chat.ai_name<<"]: ";
+        chat_limiter(message.content, false);
     }
 	do{
         line(73, '-');
@@ -243,17 +265,22 @@ void history(Neuro* neuro){
     if (current_user.total_chat == 0) return;
     do {
         system("cls");
-        banner("\033[1;32m");
+        banner("\033[1;34m");
+        center_text("Y O U R - H I S T O R Y", 71);
+        line(73, '=');
         for (int i=0; i<current_user.total_chat; i++){
-            std::cout<< i+1 << ". " << current_user.chats[i].title << std::endl;
+            auto& current_chat = current_user.chats[i];
+            std::cout<< i+1 << ". " << "[" << current_chat.ai_name << "] - " <<  current_chat.title << std::endl;
         }
         ans = input("1. Continue Chat\n2. Delete Chat\n3. Back\n>> ", 1, 3);
+        
         if(ans==1 || ans==2){
-            pil = input("Select title: ", 1, current_user.total_chat);
+            pil = input("Select title: ", 0, current_user.total_chat);
+            if(pil == 0) continue;
             pil--;
-        }
+        } 
         system("cls");
-        banner("\033[1;32m");
+        banner("\033[1;34m");
         switch(ans){
             case 1 : {
                 continue_chat(neuro, pil);
@@ -282,20 +309,6 @@ void init_ai(Neuro* neuro, Chat &current_chat){
     std::cout<<"Initialization complete, you may now begin your chat with "<<current_chat.ai_name<<".\n";
     system("pause");
     system("cls");
-}
-
-void chat_limiter(std::string& text){
-    int count = 0;
-    for(size_t i = 0; i < text.size(); i++){
-        std::cout << text[i];
-        count++;
-        if(count >= 73 && text[i] == ' '){
-            std::cout << std::endl;
-            count = 0;
-        }
-        Sleep(30);
-    }
-    std::cout << std::endl;
 }
 
 // First chat
@@ -348,7 +361,7 @@ void new_chat(Neuro* neuro){
         std::cout <<display_ai_name;
         chat_limiter(ai_answer);
         //std::cout<<display_ai_name<<ai_answer<<std::endl<<std::endl;
-		if(neuro->id != -1){
+		if(neuro->id != -1 && !(neuro->get_current_chat().messages.empty())){
             append_message(neuro, "model", ai_answer);
         }
 	}while(prompt != "exit" && prompt != "Exit");
@@ -361,7 +374,6 @@ void new_chat(Neuro* neuro){
     system("pause");
     return;
 }
-
 
 void banner(const std::string& color) {
 	line(73, '=');
@@ -376,16 +388,6 @@ R"(███╗   ██╗███████╗██╗   ██╗██�
 	line(73, '=');
 }
 
-void center_text(std::string title, int length){
-	int padding = (length - title.length())/2;
-	int remain = (length - title.length())/2 % 2;
-	std::cout << "|";
-	for(int i = 0; i < padding; i++) std::cout << " ";
-	std::cout << title;
-	for(int i = 0; i < padding + remain; i++) std::cout << " ";
-	std::cout << "|" << std::endl;
-}
-
 void progress_bar(int percent){
     int length = 50;
     int filled = percent * length / 100;
@@ -398,7 +400,8 @@ void progress_bar(int percent){
 void center(std::string text, int length, std::string color = "", bool isOption = false) {
     int padding = (length - text.length()) / 2;
     int remain = (length - text.length()) % 2;
-    int option_length = (length - 22) / 2; int option_padding = length - 22 - option_length;
+    int option_length = (length - 22) / 2; 
+    int option_padding = length - 22 - option_length;
     if (isOption) {
         const int wavy_length = 22;
         int wavy_padding = (length - wavy_length) / 2;
@@ -517,7 +520,7 @@ void help(){
     std::cout<<R"(
  🧠 1. NEUROCHAT - Start a new chat
    ➤ Custom AI Name
-     → Set your AI’s name or press enter to use default.
+     → Set your AI's name or press enter to use default.
    ➤ Custom AI Personality
      → Choose traits or press enter to skip.
    ➤ Start Chat 💬
@@ -564,6 +567,8 @@ void user_interface(Neuro* neuro){
 
 void signup(Neuro* neuro){
 	banner("\033[0m");
+    center_text("REGISTER NEW IDENTITY", 71);
+    line(73, '=');
 	std::string new_name, new_password;
 	bool success;
 	do{
@@ -583,7 +588,7 @@ void signup(Neuro* neuro){
 			std::cout<<"Account created successfully\n";
 		}
 		std::string options[] = {"Back", "Continue"};
-		int result = confirm(options, 2, "Proceed to user dashboard?");
+		int result = confirm(options, 2, "Proceed to user dashboard? ");
 		if (result == 0) {
     		user_interface(neuro);
     		break;
@@ -596,12 +601,14 @@ void signup(Neuro* neuro){
 void login(Neuro* neuro){
 	bool success = false;
 	banner("\033[0m");
+    center_text("CONNECT TO YOUR ACCOUNT", 71);
+    line(73, '=');
 	std::string name;
 	char ch;
     char char_password[100];
     int len = 0;
 	name = input("Enter your name: ");
-	std::cout << "Enter Password: \n";
+	std::cout << "Enter Password: ";
 	while ((ch = getch()) != ENTER) {
         if (ch == BACKSPACE) { 
             if (len > 0 && len < 100) {
