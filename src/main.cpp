@@ -31,12 +31,13 @@ void chat_limiter(std::string& text, bool typing = true){
     std::cout << std::endl;
 }
 
-void center_text(std::string title, int length = 73){
+void center_text(std::string title, int length = 73, bool selected = false){
 	int padding = (length - title.length())/2;
 	int remain = (length - title.length())/2 % 2;
 	std::cout << "|";
 	for(int i = 0; i < padding; i++) std::cout << " ";
-	std::cout << title;
+    if(selected) std::cout<<"\033[1;34m";
+	std::cout << title<<"\033[0m";
 	for(int i = 0; i < padding + remain; i++) std::cout << " ";
 	std::cout << "|" << std::endl;
 }
@@ -145,10 +146,10 @@ nlohmann::json post_request(curlpp::Easy &request, nlohmann::json payload){
 }
 
 nlohmann::json send_request_unlogged(std::string &input, std::string &persona, std::string &key){
-    // Prepare JSON payload
     curlpp::Easy request;
     const std::string url = dotenv::getenv("AI_BASE_URL") + key;
     request.setOpt<curlpp::options::Url>(url);
+    int max_tokens = (key == dotenv::getenv("TITLE_KEY")) ? 70 : 256;
     nlohmann::json payload = {
         {"system_instruction", {
             {"parts", {
@@ -165,7 +166,7 @@ nlohmann::json send_request_unlogged(std::string &input, std::string &persona, s
         {
             "generationConfig", {
                 {"temperature", 1.0},
-                {"maxOutputTokens", 256}
+                {"maxOutputTokens", max_tokens}
             }
         }
     };
@@ -272,55 +273,120 @@ void continue_chat(Neuro* neuro, int &pil){
     return;
 }
 
+void display_history(std::string ai_name, std::string title, std::string color = ""){
+    bool selected = (color != "");
+    // Wowie, banyak banget
+    int name_box_left = (20 - ai_name.length()) / 2;
+    int name_box_right = (20 - ai_name.length()) % 2;
+    int total_name = name_box_left + name_box_right;
+    int title_box_left = (53 - title.length()) / 2;
+    int title_box_right = (53 - title.length()) % 2;
+    int total_title = title_box_left + title_box_right;
+    
+    
+    // History selection
+    std::cout << " ";
+    for (int i = 0; i<name_box_left; i++) std::cout << " ";
+    if (selected) std::cout << color;
+    std::cout << ai_name<<"\033[0m";
+    for (int i = 0; i<total_name; i++) std::cout << " ";
+    if (selected) std::cout << color;
+    std::cout << "| " << title << "\033[0m";
+}
+
+int navigate_history(Neuro *neuro){
+    int choice = 0;
+    auto &total_chat = neuro->get_current_user().total_chat;
+    int num_choice = total_chat + 1; // Add 1 for back
+    while(1){
+        system("cls");
+        banner("\033[1;34m");
+        center_text("Y O U R - H I S T O R Y", 71);
+        std::string heading_ainame = "AI Name";
+        int ainame_left = (20 - heading_ainame.length()) / 2;
+        int ainame_right = (20 - heading_ainame.length()) % 2;
+        std::string heading_title = "Title";
+        int title_left = (50 - heading_title.length()) / 2;
+        int title_right = (50 - heading_title.length()) % 2;
+
+        // Table Heading
+        line (73, '-');
+        std::cout << "|";
+        for (int i = 0; i<ainame_left; i++) std::cout << " ";
+        std::cout << heading_ainame;
+        for (int i = 0; i<ainame_left+ainame_right; i++) std::cout << " ";
+        std::cout << "|";
+        for (int i = 0; i<title_left; i++) std::cout << " ";
+        std::cout << heading_title;
+        for (int i = 0; i<title_left+title_right; i++) std::cout << " ";
+        std::cout << "|" << std::endl;
+        line (73, '-');
+
+        for(int i = 0; i < total_chat; i++){
+            auto& current_chat = neuro->get_current_user().chats[i];
+            std::string color = (i == choice) ? "\033[1;34m" : "";
+            display_history(current_chat.ai_name, current_chat.title, color);
+        }
+        line(73, '=');
+        bool back_selected = (choice == num_choice - 1);
+        center_text ("Back", 71, back_selected);
+        
+        line(73, '=');
+        int key = getch();
+        if (key == 224) {
+            key = getch();
+            if (key == UP) {
+                choice--;
+                if (choice < 0) choice = num_choice - 1;
+            } else if (key == DOWN) {
+                choice++;
+                if (choice >= num_choice) choice = 0;
+            }
+        } else if (key == ENTER) {
+            break;
+        }
+    }
+    return choice;
+}
+
 void new_chat(Neuro* neuro);
 void history(Neuro* neuro){
     int pil, ans;
     auto& current_user = neuro->users[neuro->id];
     if (current_user.total_chat == 0){
         std::string options[] = {"Back", "Start New Chat"};
-        int result = confirm(options, 2, "No Chat History Yet!");
+        int choice_empty = confirm(options, 2, "No Chat History Yet!");
         system("cls");
-        if(result == 0){
+        if(choice_empty == 0){
             new_chat(neuro);
             return;
-        }else if(result == 1){
+        }else if(choice_empty == 1){
             return;
         }
     }
-    do {
-        system("cls");
-        banner("\033[1;34m");
-        center_text("Y O U R - H I S T O R Y", 71);
-        line(73, '=');
-        for (int i=0; i<current_user.total_chat; i++){
-            auto& current_chat = current_user.chats[i];
-            std::cout<<"("<<i+1<<"). " << "[" << current_chat.ai_name << "] - " <<  current_chat.title << std::endl;
-        }
-        ans = input("1. Continue Chat\n2. Delete Chat\n3. Back\n>> ", 1, 3);
-        
-        if(ans==1 || ans==2){
-            pil = input("Select title: ", 0, current_user.total_chat);
-            if(pil == 0) continue;
-            pil--;
-        } 
-        system("cls");
-        banner("\033[1;34m");
-        switch(ans){
-            case 1 : {
-                continue_chat(neuro, pil);
+    int choice = 0;
+    do{
+        int result = navigate_history(neuro);
+        if (result != current_user.total_chat){
+            std::string options[] = {"Delete", "Continue", "Back"};
+            choice = confirm(options, 3, " Manage History");
+            if (choice == 0) {
+                system("cls"); 
+                banner ("\033[1;34m");
+                continue_chat(neuro, result);
                 break;
-            } 
-            case 2 : {
+            }
+            else if(choice == 1){
                 current_user.chats.erase(current_user.chats.begin() + pil);
                 current_user.total_chat--;
             }
-            default : return;
-        }
-    } while (ans == 1 || ans == 2);
+            else break;
+        }else return;
+    }while(choice != 2);
 }
 
 void init_ai(Neuro* neuro, Chat &current_chat){
-    banner("\033[35m");
+    banner("\033[1;35m");
     std::cout<<"Before starting your new chat,\n"
     <<"We would like you to customize your chatbot!\n";
     current_chat.ai_name = input("AI name (defaults to Neuro): ");
@@ -456,7 +522,6 @@ int show_menu(Neuro* neuro, std::string options[], int num_choice, std::string t
     while(1){
         system("cls");
         banner("\033[1;34m");
-        line(73,'~');
         center_text(title, 71);
 		line(73,'=');
         for(int i = 0; i < num_choice; i++){
@@ -566,34 +631,46 @@ int confirm(std::string options[], int num_choice, std::string text) {
 
 void help(){
     banner("\033[0;32m");
-    center_text("💡 HELP CENTER 💡", 75);
+    center_text(" 💡 HELP CENTER 💡", 75);
     line(73, '=');
     std::cout<<R"(
-🧠 1. NEUROCHAT - Start a new chat
-➤ Custom AI Name
+1. NEUROCHAT - Start a new chat
+    By logging in, you will get three of the following benefits:
+    ➤ Custom AI Name 
      → Set your AI's name or press enter to use default.
-➤ Custom AI Personality
+
+    ➤ Custom AI Personality
      → Choose traits or press enter to skip.
-➤ Start Chat 💬
-     → Begin chatting with Neuro.
-➤ Exit 🚪
+
+    ➤ AI Memory
+     → Your AI will remember previous messages.
+
+    Otherwise, you will only gain access to the following features:
+    ➤ Start Chat 
+     → Begin chatting with the AI.
+
+    ➤ Exit 
      → Type "exit" to end chat.
 
-📁 2. CHAT HISTORY - Manage previous sessions
-➤ Continue Chat 🔁
-     → Type "1" then choose a chat title to continue.
-➤ Delete Chat 🗑️
-     → Type "2" then select a chat title to delete.
-➤ Exit 🔙
-     → Type "3" to return to main menu.
+2. CHAT HISTORY - Manage previous sessions
+    Select one of the previously created chat sessions.
+    You'll get to do the following:
+    ➤ Continue Chat 
 
-⚙️ 3. ACCOUNT - Manage account
-➤ Update Profile 🔐
-     → Choose data to update.
-➤ Delete Account 🗑️
-     → Delete your account and erase all your data.
+    ➤ Delete Chat 
 
-➭ Use ↑ / ↓ to navigate. Press Enter to select.
+    ➤ Return to Previous Menu
+
+3. ACCOUNT - Manage account
+
+    ➤ Update Profile 
+     → Choose data to update (username or password).
+
+    ➤ Delete Account 
+     → Delete your account and erase all data.
+
+➭ Use ↑ / ↓ / ← / → to navigate. Press Enter to select.
+
 )";
     system("pause");
 }
@@ -607,13 +684,12 @@ int account(Neuro *neuro){
     for (int i=0; i<current_user.total_chat; i++){
         if (current_user.chats[i].messages.size() > biggest){
             biggest = current_user.chats[i].messages.size();
-            title_biggest = "[" + current_user.chats[i].ai_name + "] -" + current_user.chats[i].title;
+            title_biggest = "[" + current_user.chats[i].ai_name + "] - " + current_user.chats[i].title;
         }
     }
     title_biggest = (!(title_biggest.empty())) ? title_biggest : "None, yet.";
     do {
-        system("cls"); banner("\033[0m");
-        line(73, '=');
+        system("cls"); banner("\033[1;32m");
         std::cout << "Username\t: " << current_user.username << std::endl
         << "Password\t: " << current_user.password << std::endl
         << "Total Chat\t: " << current_user.total_chat << " chat(s)" << std::endl
@@ -637,14 +713,15 @@ int account(Neuro *neuro){
                     }
                     if (success) {
                         current_user.username = new_name;
-                        std::cout<<"Your username is already updated!\n";
+                        std::cout<<"Your username has been updated!\n";
+                        system("pause");
                         break;
                     }
                 }while (true);
             } else if (ans == 1){
                 bool success = true;
                 current_user.password = input("Enter new password: ");
-                std::cout<<"Your password is already updated!\n";
+                std::cout<<"Your password has been updated!\n";
                 system("pause");
             } else if (ans == 2) continue;
         } else if (result == 1){
@@ -691,19 +768,33 @@ void signup(Neuro* neuro){
 	std::string new_name, new_password;
 	bool success;
 	do{
-        banner("\033[0m");
+        banner("\033[1;35m");
         center_text("REGISTER IDENTITY", 71);
         line(73, '=');
+        do{
+            new_name = input("Enter Name: ");
+            if (new_name.empty() || new_name == "") {
+                std::cout << "Username cannot be empty!\n";
+                success = false; continue;
+            }
+            break;
+        }while(true);
         success = true;
-		new_name = input("Enter Name: ");
 		for(auto user : neuro->users){
 			if(user.username == new_name){
 				std::cout << "Username not available!" << std::endl;
-				success = false; break;
+                system("pause"); return;
 			}
 		}
 		if (success){
-			new_password = input("Enter Password: ");
+            do{
+                new_password = input("Enter Password: ");
+                if(new_password.empty() || new_password == ""){
+                    std::cout << "Password cannot be empty!\n";
+                    continue;
+                }
+                break;
+            }while(true);
             neuro->id = neuro->total_user; //noted
 			neuro->users.push_back({new_name, new_password}); 
             neuro->total_user++;
@@ -720,9 +811,100 @@ void signup(Neuro* neuro){
 	}while(1);
 }
 
+void credits(){
+    banner("\033[1;35m");
+    std::cout<<
+R"(
+                             ++=--+=--------=++-===                             
+                        -=+==++=-+=----------=+=========                        
+                    +====+=====-=+------------=+=========*%%                    
+                 %=+=-=-==-===-===------=------=+===---=+++%%*#                 
+               #%@#=-===+-----===-------=-----====-=--=++*++@%##%               
+             *#@%*+#%*===-----=----------=-=--::----*===++###@###%+             
+           +*%@%++%%%%%#==--=-=-::-------=:--::::-==++=+++###@%#*#%==           
+         ++#@@#=+%%%#%%*=======-::-:::--:=-----:-====*+=+++*#@@#*#%#=           
+        ==*%@#=+*%%%###*=+++++=----::-=--=--===-=====+*=+++++%@%*##%#-*#        
+      #+++%@%+++#%%%##*+=++++++===---==+-++=========+=+==+++++#%#*%#%+-*+       
+     ###+#@%#+*+#%%%#%%*=++++*+=======+==++=========+++===++#*++**%#%#+*+-      
+    #####%@%#+#*%%%%#%%#+=+*#+++======+==+=+==+=====++=..-==+###**%#%%*+=       
+   %####%@@##+#*%%%%%%%%#*###+++=====++=+=-===+=====++-::=-=+++######%*+=       
+  %#%%##@@%####*#%%%%#%@@###*++==+===*+=+-:-+++=====:=-=#@@%####%%#%%%#+        
+  %##%#%@@%##%##%@%%%@@@@%*#*++=+===++=++=--=++====-:=+@#==*%%#*##%%##+=        
+ %%#%%#%%%%######%%%@@@@@@@#+*++===+#*+*+=-:-++=-==::=@%%=:+=%#+=*###%#====     
+ *#%%%#%%@@%#####%@@@@@@@%%+++====+%%##%@@%%%#+===-..+%%#=:-+%#==#%#%#%+=       
+ *##%%#%%%@@#####%@@@%%*#*+**===+#%#++*****#%@%=-:.:.-++=-::*%*=*%%#++*++++=-   
+ **#*%#%%%%@@%##%@@%#++##+#*==+++%%+*********%#-..::..-==---+#=*####*=-+=       
+ *##*+#%%%#%@@@%###+=*%%##++*#*-#%#*********#%-.::...:::--===#%#+++#*==*=      %
+ *#%#**#%@%##%@@#*#%%###*###*=+*%%+*********%+:::...:--:--==+#%#==+#*==+=    =*%
+  %%#%###########%%@#*+*##+=+++#%#+***#****#%-:::..:.:::-----%%*++#+++++    =+%%
+   #####**######%@@@#:-=++#++==+%%%#+++***%#=--::.::...:::::=%%++#+++*+= +==*%#=
+   +++#*++###%####%@@#--=+*#+===--=*###%%#=---:::..::=+:.::=%%#+**=+++==-=*%%*= 
+        +*#%########%@%#+-+##+=-=----===-----::--==++#+:::=++**+#++++++#%%#*+   
+        ++  #########%%%%%%##*+*+--------::::::+*+====:::+###**#+=====--==:     
+ %%%@%%###############%###*###+=+#+--:::::::::.:=====::-*%%%%#####++-           
+ @@%%%%############%##++**#*####-+###=-:::::::::::::::-%%%%%%%#%%@@+##+=        
+ @@%%#########*===*###*=:=*#*####*=**#+=*#*+=-:::::::+@%%%%@@@%%%%@#####*    =  
+  #*++++++---+#*=---+##*=::-***###*#**#--=####%%#*#%%%%%%%%@@@%#%@@%*####--==+  
+  +==++==++----+*=--:=*##+-:--+*###*++++-:-=*###***####*==+#%%@##########+%%%%  
+   ===+++=++=---=#=--:-+###+----+*###*+=-=-::=#***####+:--:+%%%%###+######%%%   
+    ===+++==+++=-=#+=+++*###*+=---+**++==----::-+***##*===-=%%%%##+#####*%%%    
+     ++==++===+**##############*++=-=+*+=-:::---::-=*#=-=--+%%#%%+#######%%     
+      %##+++*+#%%%%%#############==----==+=-:::---::----=--+%%%%#######%%%      
+        %%##%%%%%%#*############*++=-:::::-----====--::-=+=-=%%%######%%        
+         %@%%%%%%%%%#+#%#######**--=*=--===--::::-----:::--=-=##+#####%         
+           #*#%%%%%%%#+*##%%%##%%#+--=**+-::--=+--::::::::::---+#*###           
+             ==-=#%#++++++-*%%%%%%%%#+--+##*=-::----::::::-------+#             
+               ....:=+++*##+#%%%%%%%%%%%####++=-::::::::---------               
+                 ....-=###%%%%%%%%%%%%%%%%%#+------::----------                 
+                    .:--=#%%%%%#%%%%%%%%%%%%#*+*##*+=-------                    
+                        --+%%%%%%##%%%%%%%%%%%#**+**%#+=                        
+                             %%%%%%%%###%%%%%%%%%%%                             
+
+MIT License
+
+Copyright (c) 2025 I Nyoman Widiyasa Jayananda and Co.
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+)";line(73, '-');std::cout<<
+R"(Made with ❤️ by:
+I Nyoman Widiyasa Jayananda (Schryzon) - F1D02410053
+I Kadek Mahesa Permana Putra (Vuxyn) - F1D02410052
+Samara Wardasadiya (samarawards) - F1D02410023
+
+Thanks to:
+Muhammad Rendi Maulana (YNK) as our group's assistant
+Christian Hadi Chandra (CHIZ) as the practicum coordinator
+
+Special thanks to:
+Senior Muhammad Kholilluloh for bringing upon solution to approve our project idea
+Dzakanov Inshoofi (SEA) for the insights on C++ libraries
+
+Sincerely,
+Team Neuro.
+
+)";
+    system("pause");
+}
+
 void login(Neuro* neuro){
 	bool success = false;
-	banner("\033[0m");
+	banner("\033[1;32m");
     center_text("CONNECT TO YOUR ACCOUNT", 71);
     line(73, '=');
 	std::string name;
@@ -771,16 +953,16 @@ void login(Neuro* neuro){
 	if (success){
 		user_interface(neuro);
 	}else{
-		std::cout<<"username not found\n";
+		std::cout<<"Login failed!\n";
+        system("pause");
 	}
-	system("pause");
 }
 
 void main_menu(Neuro* neuro){
     banner("\033[0m");
     line(73, '=');
-    const int num_choice = 4;
-    std::string options[] = {"NeuroChat", "Register", "Connect", "Disconnect"};
+    const int num_choice = 6;
+    std::string options[] = {"NeuroChat", "Register", "Guide", "Connect", "Disconnect", "Credits & License"};
     int choice;
     do {
     	std::string title = "S Y N T A X - S E M A N T I C - S E N T I E N C E  ";
@@ -790,10 +972,14 @@ void main_menu(Neuro* neuro){
             new_chat(neuro);
         } else if(choice == 1) {
             signup(neuro);
-        } else if(choice == 2) {
+        } else if(choice ==2){
+            help();
+        }else if(choice == 3) {
             login(neuro);
+        }else if(choice == 5){
+            credits();
         }
-    } while(choice != 3);
+    } while(choice != 4);
     system("cls");
 }
 
@@ -801,7 +987,7 @@ void loading(Neuro* neuro){
     std::string warna[] = {
         "\033[91m", "\033[92m", "\033[93m",
         "\033[94m", "\033[95m", "\033[1;34m",
-        "\033[1;33m", "\033[1;31m"
+        "\033[1;33m", "\033[1;35m"
     };
     int color_idx = 0;
     for (int i = 0; i <= 100; ++i) {

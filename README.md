@@ -68,4 +68,4 @@ You may configure the following files in your `.vscode/` directory to create a d
 
 ## Current Status
 - ✅ | Approved by assistant YNK and Senior Kholilluloh.
-- 🚧 | Currently in development process. Nearly there!
+- ✅ | Done, ready for improvement!
