@@ -7,13 +7,12 @@
 #include "curlpp/cURLpp.hpp"
 #include "curlpp/Easy.hpp"
 #include "curlpp/Options.hpp"
-#include "curlpp/Option.hpp"
 #include "nlohmann/json.hpp"
 const int UP = 72, DOWN = 80;
 const int RIGHT = 77, LEFT = 75, ENTER = 13;
 const int BACKSPACE = 8;
 #define cursor_up std::cout<<"\x1b[A\x1b[2K"
-#define flsh std::cin.ignore(9999, '\n')
+#define flush_buffer std::cin.ignore(9999, '\n')
 #define failed std::cin.fail()
 void banner(const std::string& color);
 int confirm(std::string x[], int y, std::string z);
@@ -53,11 +52,11 @@ int input(const std::string &prompt, int min, int max){
         std::cout<<prompt;
         std::cin>>x;
         if(failed || x < min || x > max){
-            std::cin.clear(); flsh;
+            std::cin.clear(); flush_buffer;
             cursor_up;
             std::cout<<"\033[31mInvalid\033[0m: Please input between "<<min<<" and "<<max<<"!"<<std::endl;
         }else{
-            flsh; return x;
+            flush_buffer; return x;
         }
     }
 }
@@ -70,7 +69,7 @@ struct Message{
 struct Chat{
     std::string ai_name = "Neuro";
     std::string personality = "";
-	std::string title;
+	std::string title = "Untitled Topic\n";
 	std::vector<Message> messages = {}; // DO NOT INIT Message{}
 };
 
@@ -119,25 +118,8 @@ nlohmann::json prep_payload(const Chat *chat){
     return contents;
 }
 
-nlohmann::json send_request_unlogged(std::string &input, std::string &persona, std::string &key){
-    // Prepare JSON payload
-    curlpp::Easy request;
-    const std::string url = dotenv::getenv("AI_BASE_URL") + key;
-    request.setOpt<curlpp::options::Url>(url);
-    nlohmann::json payload = {
-        {"system_instruction", {
-            {"parts", {
-                {{"text", persona}}
-            }}
-        }},
-        {"contents", {
-            {
-                {"parts", {
-                    {{"text", input}}
-                }}
-            }
-        }}
-    };
+// Non-async
+nlohmann::json post_request(curlpp::Easy &request, nlohmann::json payload){
     std::string body = payload.dump();
     // Set headers
     std::list<std::string> headers = {
@@ -162,43 +144,55 @@ nlohmann::json send_request_unlogged(std::string &input, std::string &persona, s
     return json;
 }
 
-nlohmann::json send_request(Neuro *neuro, const Chat *chat, std::string &persona, std::string &key){
+nlohmann::json send_request_unlogged(std::string &input, std::string &persona, std::string &key){
     // Prepare JSON payload
     curlpp::Easy request;
     const std::string url = dotenv::getenv("AI_BASE_URL") + key;
     request.setOpt<curlpp::options::Url>(url);
+    nlohmann::json payload = {
+        {"system_instruction", {
+            {"parts", {
+                {{"text", persona}}
+            }}
+        }},
+        {"contents", {
+            {
+                {"parts", {
+                    {{"text", input}}
+                }}
+            }
+        }},
+        {
+            "generationConfig", {
+                {"temperature", 1.0},
+                {"maxOutputTokens", 256}
+            }
+        }
+    };
+    return post_request(request, payload);
+}
+
+nlohmann::json send_request(Neuro *neuro, const Chat *chat, std::string &persona, std::string &key){
+    curlpp::Easy request;
+    const std::string url = dotenv::getenv("AI_BASE_URL") + key;
+    request.setOpt<curlpp::options::Url>(url);
     nlohmann::json contents = prep_payload(chat);
-    std::string add_sys_prompt = "You are talking to '" + neuro->get_current_user().username+"'";
+    std::string add_sys_prompt = " You are talking to '" + neuro->get_current_user().username+"'";
     nlohmann::json payload = {
         {"system_instruction", {
             {"parts", {
                 {{"text", (persona + add_sys_prompt)}}
             }}
         }},
-        {"contents", contents}
+        {"contents", contents},
+        {
+            "generationConfig", {
+                {"temperature", 1.0},
+                {"maxOutputTokens", 256}
+            }
+        }
     };
-    std::string body = payload.dump();
-    // Set headers
-    std::list<std::string> headers = {
-        "Content-Type: application/json"
-    };
-    request.setOpt(new curlpp::options::HttpHeader(headers));
-
-    // Tell curlpp to POST our JSON
-    request.setOpt(new curlpp::options::PostFields(body));
-    request.setOpt(new curlpp::options::PostFieldSize(body.size()));
-
-    // Capture response
-    std::ostringstream response_stream;
-    request.setOpt(new curlpp::options::WriteStream(&response_stream));
-
-    // Perform the POST
-    request.perform();
-
-    // Parse and extract AI answer
-    const std::string resp_str = response_stream.str();
-    auto json = nlohmann::json::parse(resp_str);
-    return json;
+    return post_request(request, payload);
 }
 
 std::string get_answer_unlogged(std::string &input, std::string &persona, std::string &key){
@@ -224,10 +218,25 @@ void continue_message(Neuro *neuro, int &pil, std::string role, std::string cont
     current_user.chats[pil].messages.push_back({role, content});
 }
 
+void create_title(Neuro *neuro, Chat *chat){
+    auto TITLE_KEY = dotenv::getenv("TITLE_KEY");
+    auto TITLE_PERSONALITY = dotenv::getenv("TITLE_PERSONALITY");
+    if(chat->title == "Untitled Topic\n" || chat->title == "") {
+        std::string message_content = neuro->get_current_user().username + ": " + chat->messages[0].content + " | "
+        + chat->ai_name + ": " + chat->messages[1].content;
+        chat->title = get_answer_unlogged(message_content, TITLE_PERSONALITY, TITLE_KEY);
+        if(chat->title == ""){ // Sometimes it does this idk why
+            chat->title = "Untitled Topic\n";
+        }
+    }
+}
+
 // continue chat
 void continue_chat(Neuro* neuro, int &pil){
     std::string name, ai_name, persona;
     auto GEMINI_API_KEY = dotenv::getenv("GEMINI_API_KEY");
+    auto TITLE_KEY = dotenv::getenv("TITLE_KEY");
+    auto TITLE_PERSONALITY = dotenv::getenv("TITLE_PERSONALITY");
     auto &user = neuro->get_current_user();
     auto &current_chat = neuro->get_current_chat(pil);
     name = user.username;
@@ -238,6 +247,7 @@ void continue_chat(Neuro* neuro, int &pil){
         if(message.role == "user") std::cout << "[" << user.username << "]: ";
         else std::cout<<"["<<current_chat.ai_name<<"]: ";
         chat_limiter(message.content, false);
+        std::cout<<std::endl;
     }
 	do{
         line(73, '-');
@@ -252,15 +262,16 @@ void continue_chat(Neuro* neuro, int &pil){
         ai_answer = get_answer(neuro, &current_chat, persona, GEMINI_API_KEY);
 		cursor_up;
         std::string display_ai_name = "["+ai_name+"]: ";
-        std::cout <<display_ai_name;
+        std::cout<<display_ai_name;
         chat_limiter(ai_answer);
         continue_message(neuro, pil, "model", ai_answer);
+        create_title(neuro, &current_chat);
 	}while(prompt != "exit" && prompt != "Exit");
     std::cout<<"Returning to the previous menu..."<<std::endl;
     system("pause");
     return;
 }
-//COMMIT
+
 void new_chat(Neuro* neuro);
 void history(Neuro* neuro){
     int pil, ans;
@@ -283,7 +294,7 @@ void history(Neuro* neuro){
         line(73, '=');
         for (int i=0; i<current_user.total_chat; i++){
             auto& current_chat = current_user.chats[i];
-            std::cout<< i+1 << ". " << "[" << current_chat.ai_name << "] - " <<  current_chat.title << std::endl;
+            std::cout<<"("<<i+1<<"). " << "[" << current_chat.ai_name << "] - " <<  current_chat.title << std::endl;
         }
         ans = input("1. Continue Chat\n2. Delete Chat\n3. Back\n>> ", 1, 3);
         
@@ -360,12 +371,12 @@ void new_chat(Neuro* neuro){
 		
         if(neuro->id != -1){
             append_message(neuro, "user", prompt);
-            auto &user = neuro->get_current_user();
             auto &current_chat = neuro->get_current_chat();
-            if(current_chat.title.empty() || current_chat.title == "")
-                current_chat.title = get_answer_unlogged(prompt, TITLE_PERSONALITY, TITLE_KEY);
             ai_answer = get_answer(neuro, &current_chat, persona, GEMINI_API_KEY);
-        // Hit API: if user is not logged in, Neuro will have an amnesia
+            append_message(neuro, "model", ai_answer);
+            // Create title here for more context
+            create_title(neuro, &current_chat);
+        // API: if user is not logged in, Neuro will have an amnesia
         }else{
             ai_answer = get_answer_unlogged(prompt, persona, GEMINI_API_KEY);
         }
@@ -373,10 +384,6 @@ void new_chat(Neuro* neuro){
         std::string display_ai_name = "["+ai_name+"]: ";
         std::cout <<display_ai_name;
         chat_limiter(ai_answer);
-        //std::cout<<display_ai_name<<ai_answer<<std::endl<<std::endl;
-		if(neuro->id != -1 && !(neuro->get_current_chat().messages.empty())){
-            append_message(neuro, "model", ai_answer);
-        }
 	}while(prompt != "exit" && prompt != "Exit");
     if(neuro->id != -1){
         auto &user = neuro->get_current_user();
@@ -482,6 +489,7 @@ int* get_paddings(const std::string &text, int width = 73) {
     return pads;
 }
 
+int last_top_choice = 0;
 int confirm(std::string options[], int num_choice, std::string text) {
     int choice = 0, key;
     const int box_width = 71;
@@ -524,10 +532,31 @@ int confirm(std::string options[], int num_choice, std::string text) {
         if (key == 224 || key == 0) {
             key = getch();
             if (key == LEFT)  {
-                choice = (choice == 0) ? num_choice-1 : choice - 1;
+                if(choice == 2){
+                    choice = last_top_choice;
+                }else{
+                    choice = (choice - 1 + 2) % 2; // Fix modulo at two, prevent getting stuck
+                    last_top_choice = choice;
+                }
             }
             if (key == RIGHT) {
-                choice = (choice == num_choice-1) ? 0 : choice + 1;
+                if(choice == 2){
+                    choice = last_top_choice;
+                }else{
+                    choice = (choice + 1) % 2;
+                    last_top_choice = choice;
+                }
+            }
+            if(key == DOWN && num_choice == 3){
+                if(choice == 0 || choice == 1){
+                    last_top_choice = choice;
+                }
+                choice = 2;
+            }
+            if(key == UP && num_choice == 3){
+                if(choice == 2){
+                    choice = last_top_choice;
+                }
             }
         } else if (key == ENTER) {
             return choice;
@@ -578,16 +607,17 @@ int account(Neuro *neuro){
     for (int i=0; i<current_user.total_chat; i++){
         if (current_user.chats[i].messages.size() > biggest){
             biggest = current_user.chats[i].messages.size();
-            title_biggest = current_user.chats[i].title;
+            title_biggest = "[" + current_user.chats[i].ai_name + "] -" + current_user.chats[i].title;
         }
     }
+    title_biggest = (!(title_biggest.empty())) ? title_biggest : "None, yet.";
     do {
         system("cls"); banner("\033[0m");
         line(73, '=');
         std::cout << "Username\t: " << current_user.username << std::endl
         << "Password\t: " << current_user.password << std::endl
-        << "Total Chat\t: " << current_user.total_chat << " title(s)" << std::endl
-        << "The Most Chatted: " << title_biggest << std::endl;
+        << "Total Chat\t: " << current_user.total_chat << " chat(s)" << std::endl
+        << "Most Frequently Chatted: " << title_biggest << std::endl;
         system("pause");
         std::string options[] = {"Delete Account", "Update Profile", "Back"};
         result = confirm(options, 3, "Manage your Account");
@@ -607,14 +637,14 @@ int account(Neuro *neuro){
                     }
                     if (success) {
                         current_user.username = new_name;
-                        std::cout<<"Your username is already updated\n";
+                        std::cout<<"Your username is already updated!\n";
                         break;
                     }
                 }while (true);
             } else if (ans == 1){
                 bool success = true;
                 current_user.password = input("Enter new password: ");
-                std::cout<<"Your password is already updated\n";
+                std::cout<<"Your password is already updated!\n";
                 system("pause");
             } else if (ans == 2) continue;
         } else if (result == 1){
@@ -626,6 +656,7 @@ int account(Neuro *neuro){
             return result;
         } else if (result == 2) return 0;
     }while (result != 2);
+    return 0; // Safe guard for the compiler
 }
 
 void user_interface(Neuro* neuro){
