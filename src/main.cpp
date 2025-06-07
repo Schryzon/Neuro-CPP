@@ -1,6 +1,5 @@
 #include <iostream>
 #include <vector>
-#include <string>
 #include <sstream>
 #include <conio.h>
 #include "dotenv.h"
@@ -882,18 +881,18 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 )";line(73, '-');std::cout<<
-R"(Made with ❤️ by:
+R"(Made with ❤️ and passion by:
 I Nyoman Widiyasa Jayananda (Schryzon) - F1D02410053
 I Kadek Mahesa Permana Putra (Vuxyn) - F1D02410052
 Samara Wardasadiya (samarawards) - F1D02410023
 
 Thanks to:
 Muhammad Rendi Maulana (YNK) as our group's assistant
-Christian Hadi Chandra (CHIZ) as the practicum coordinator
+Christian Hadi Candra (CHIZ) as the practicum coordinator
 
 Special thanks to:
 Senior Muhammad Kholilluloh for bringing upon solution to approve our project idea
-Dzakanov Inshoofi (SEA) for the insights on C++ libraries
+Dzakanov Inshoofi (SEA) for the insights on low-level programming and libraries
 
 Sincerely,
 Team Neuro.
