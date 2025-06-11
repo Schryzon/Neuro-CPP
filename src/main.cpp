@@ -13,9 +13,12 @@ const int RIGHT = 77;
 const int LEFT = 75;
 const int ENTER = 13;
 const int BACKSPACE = 8;
+
+//Global Variable
+int last_top_choice = 0;
 const int max_chats = 500;
 const int max_users = 100;
-const int max_messages = 1000;
+const int max_messages = 2000;
 
 #define cursor_up std::cout<<"\x1b[A\x1b[2K"
 #define flush_buffer std::cin.ignore(9999, '\n')
@@ -31,7 +34,7 @@ struct Chat{
     std::string personality = "";
 	std::string title = "Untitled Topic\n";
 	//std::vector<Message> messages = {}; //DO NOT INIT Message{}
-    Message* messages = new Message[max_messages];
+    Message* messages = new Message[max_messages]();
     int total_messages = 0;
 };
 
@@ -39,13 +42,12 @@ struct User{
     std::string username;
     std::string password;
     //std::vector<Chat> chats = {Chat{}};
-    Chat* chats = new Chat[max_chats];
+    Chat* chats = new Chat[max_chats]();
     int total_chat;
-    int user_id;
 };
 
 struct Neuro{
-    User* users = new User[max_users];
+    User* users = new User[max_users]();
 	//std::vector<User> users;
 	int id = -1;
 	int total_user = 0;
@@ -60,9 +62,6 @@ struct Neuro{
         return users[id];
     }
 };
-
-//Global Variable
-int last_top_choice = 0;
 
 /*
 Function prototypes below
@@ -87,6 +86,10 @@ inline void loading(Neuro* neuro);
 inline std::string input(const std::string &prompt);
 inline int input(const std::string &prompt, int min, int max);
 inline int end_program(Neuro *neuro, int status_code);
+template <typename Array>
+inline void append(Array arr[], const Array &content, int *accumulator);
+template <typename Array>
+inline void erase(Array arr[], const int idx, const int max, int *accumulator);
 
 //Core Formation
 nlohmann::json prep_payload(const Chat *chat);
@@ -109,6 +112,20 @@ inline void credits();
 void user_interface(Neuro* neuro);
 void main_menu(Neuro* neuro);
 void login(Neuro* neuro);
+
+template <typename Array> // Accepts any type
+inline void append(Array arr[], const Array &content, int *accumulator){
+    arr[*accumulator] = content;
+    (*accumulator)++;
+}
+
+template <typename Array>
+inline void erase(Array arr[], const int idx, const int max, int *accumulator){
+    for (int i = idx; i<max; i++){
+        arr[i] = arr[i+1]; // Use shifting replacement
+    }
+    (*accumulator)--;
+}
 
 inline void chat_limiter(std::string& text, bool typing = true){
     int count = 0;
@@ -159,23 +176,7 @@ inline void line(int length, char c){
 	for(int i = 0; i < length; i++) std::cout << c;
 	std::cout << std::endl;
 } 
-/*
-nlohmann::json prep_payload(const Chat *chat){
-    nlohmann::json contents = nlohmann::json::array(); // For Neuro's memory
-    for(auto message : chat->messages){
-        nlohmann::json current_turn = {
-            {"role", message.role},
-            {"parts", {
-                {{"text", message.content}}
-            }}
-        };
-        contents.push_back(current_turn);
-    }
-    return contents;
-}
-*/
 
-//yg ga pake vector
 nlohmann::json prep_payload(const Chat *chat){
     nlohmann::json contents = nlohmann::json::array(); // For Neuro's memory
     for(int i = 0; i<chat->total_messages; i++){
@@ -185,8 +186,7 @@ nlohmann::json prep_payload(const Chat *chat){
                 {{"text", chat->messages[i].content}}
             }}
         };
-        contents.push_back(current_turn);
-
+        contents.push_back(current_turn); // Cannot use my append()
     }
     return contents;
 }
@@ -283,16 +283,20 @@ std::string get_answer(Neuro *neuro, const Chat *chat, std::string &persona, std
 // For memory
 inline void append_message(Neuro *neuro, std::string role, std::string content){
     auto& current_user = neuro->users[neuro->id];
-	//current_user.chats[current_user.total_chat].messages.push_back({role, content});
-    current_user.chats[current_user.total_chat].messages[current_user.chats->total_messages] = {role, content};
-    current_user.chats->total_messages++;
+    append(
+        current_user.chats[current_user.total_chat].messages, 
+        Message{role, content}, 
+        &current_user.chats[current_user.total_chat].total_messages
+    );
 }
 
 inline void continue_message(Neuro *neuro, int &pil, std::string role, std::string content){
     auto &current_user = neuro->users[neuro->id];
-    //current_user.chats[pil].messages.push_back({role, content});
-    current_user.chats[pil].messages[current_user.chats->total_messages] = {role, content};
-    current_user.chats->total_messages++;
+    append(
+        current_user.chats[pil].messages, 
+        Message{role, content}, 
+        &current_user.chats[pil].total_messages
+    );
 }
 
 void create_title(Neuro *neuro, Chat *chat){
@@ -322,10 +326,10 @@ void continue_chat(Neuro* neuro, int &pil){
         if(current_chat.messages[i].role == "user") std::cout << "[" << user.username << "]: ";
         else std::cout<<"["<<current_chat.ai_name<<"]: ";
         chat_limiter(current_chat.messages[i].content, false);
-        std::cout<<std::endl;
+        if(current_chat.messages[i].role == "user") std::cout<<std::endl;
+        else line(73, '-'); // Check if it's AI's turn
     }
 	do{
-        line(73, '-');
         std::string display_name = "["+name+"]";
         std::string display_prompt = display_name +" (type 'exit' to go back): ";
 		prompt = input(display_prompt);
@@ -341,6 +345,7 @@ void continue_chat(Neuro* neuro, int &pil){
         chat_limiter(ai_answer);
         continue_message(neuro, pil, "model", ai_answer);
         create_title(neuro, &current_chat);
+        line(73, '-');
 	}while(prompt != "exit" && prompt != "Exit");
     std::cout<<"Returning to the previous menu..."<<std::endl;
     system("pause");
@@ -423,7 +428,6 @@ int navigate_history(Neuro *neuro){
 }
 
 void history(Neuro* neuro){
-    int pil, ans;
     auto& current_user = neuro->users[neuro->id];
     if (current_user.total_chat == 0){
         std::string options[] = {"Back", "Start New Chat"};
@@ -447,10 +451,12 @@ void history(Neuro* neuro){
             }
             else if(choice == 1){
                 //current_user.chats.erase(current_user.chats.begin() + pil);
-                current_user.total_chat--;
-                for (int i = pil-1; i<current_user.total_chat; i++){
-                    current_user.chats[i] = current_user.chats[i+1];
-                }
+                erase(
+                    current_user.chats,
+                    result,
+                    current_user.total_chat,
+                    &current_user.total_chat
+                );
             }
             else break;
         }else return;
@@ -519,7 +525,6 @@ void new_chat(Neuro* neuro){
 	}while(prompt != "exit" && prompt != "Exit");
     if(neuro->id != -1){
         auto &user = neuro->get_current_user();
-        //user.chats.push_back(Chat{});
         user.total_chat++;
     }
     std::cout<<"\nReturning to the previous menu..."<<std::endl;
@@ -790,11 +795,12 @@ int account(Neuro *neuro){
                 system("pause");
             } else if (ans == 2) continue;
         } else if (result == 1){
-            //neuro->users.erase(neuro->users.begin() + current_user.user_id);
-            for (int i = current_user.user_id; i<neuro->total_user; i++){
-                neuro->users[i] = neuro->users[i+1];
-            }
-            neuro->total_user--;
+            erase(
+                neuro->users,
+                neuro->id,
+                neuro->total_user,
+                &neuro->total_user
+            );
             system("cls"); banner("\033[0m");
             center_text("Account Deleted Successfully", 71);
             line(73, '='); system("pause"); 
@@ -869,8 +875,7 @@ void signup(Neuro* neuro){
                 }
                 break;
             }while(true);
-            neuro->id = neuro->total_user; //noted
-//			neuro->users.push_back({new_name, new_password}); 
+            neuro->id = neuro->total_user; // Direct push back here
             neuro->users[neuro->id] = {new_name, new_password};
             neuro->total_user++;
 			std::cout<<"Account created successfully!\n";
