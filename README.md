@@ -5,7 +5,7 @@
 <table>
 <tr>
 <td><img src="img/Neuro-Erased.png" width="40"></td>
-<td><h1>Neuro-CPP (No <vector> library)</h1></td>
+<td><h1>Neuro-CPP (No "vector" library)</h1></td>
 </tr>
 </table>
 
