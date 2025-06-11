@@ -1,5 +1,4 @@
 #include <iostream>
-// #include <vector> See ya!
 #include <sstream>
 #include <conio.h>
 #include "dotenv.h"
@@ -14,6 +13,9 @@ const int RIGHT = 77;
 const int LEFT = 75;
 const int ENTER = 13;
 const int BACKSPACE = 8;
+const int max_chats = 500;
+const int max_users = 100;
+const int max_messages = 1000;
 
 #define cursor_up std::cout<<"\x1b[A\x1b[2K"
 #define flush_buffer std::cin.ignore(9999, '\n')
@@ -28,19 +30,23 @@ struct Chat{
     std::string ai_name = "Neuro";
     std::string personality = "";
 	std::string title = "Untitled Topic\n";
-	std::vector<Message> messages = {}; //DO NOT INIT Message{}
+	//std::vector<Message> messages = {}; //DO NOT INIT Message{}
+    Message* messages = new Message[max_messages];
+    int total_messages = 0;
 };
 
 struct User{
     std::string username;
     std::string password;
-    std::vector<Chat> chats = {Chat{}};
+    //std::vector<Chat> chats = {Chat{}};
+    Chat* chats = new Chat[max_chats];
     int total_chat;
     int user_id;
 };
 
 struct Neuro{
-	std::vector<User> users;
+    User* users = new User[max_users];
+	//std::vector<User> users;
 	int id = -1;
 	int total_user = 0;
 
@@ -153,7 +159,7 @@ inline void line(int length, char c){
 	for(int i = 0; i < length; i++) std::cout << c;
 	std::cout << std::endl;
 } 
-
+/*
 nlohmann::json prep_payload(const Chat *chat){
     nlohmann::json contents = nlohmann::json::array(); // For Neuro's memory
     for(auto message : chat->messages){
@@ -164,6 +170,23 @@ nlohmann::json prep_payload(const Chat *chat){
             }}
         };
         contents.push_back(current_turn);
+    }
+    return contents;
+}
+*/
+
+//yg ga pake vector
+nlohmann::json prep_payload(const Chat *chat){
+    nlohmann::json contents = nlohmann::json::array(); // For Neuro's memory
+    for(int i = 0; i<chat->total_messages; i++){
+        nlohmann::json current_turn = {
+            {"role", chat->messages[i].role},
+            {"parts", {
+                {{"text", chat->messages[i].content}}
+            }}
+        };
+        contents.push_back(current_turn);
+
     }
     return contents;
 }
@@ -260,12 +283,16 @@ std::string get_answer(Neuro *neuro, const Chat *chat, std::string &persona, std
 // For memory
 inline void append_message(Neuro *neuro, std::string role, std::string content){
     auto& current_user = neuro->users[neuro->id];
-	current_user.chats[current_user.total_chat].messages.push_back({role, content});
+	//current_user.chats[current_user.total_chat].messages.push_back({role, content});
+    current_user.chats[current_user.total_chat].messages[current_user.chats->total_messages] = {role, content};
+    current_user.chats->total_messages++;
 }
 
 inline void continue_message(Neuro *neuro, int &pil, std::string role, std::string content){
     auto &current_user = neuro->users[neuro->id];
-    current_user.chats[pil].messages.push_back({role, content});
+    //current_user.chats[pil].messages.push_back({role, content});
+    current_user.chats[pil].messages[current_user.chats->total_messages] = {role, content};
+    current_user.chats->total_messages++;
 }
 
 void create_title(Neuro *neuro, Chat *chat){
@@ -291,10 +318,10 @@ void continue_chat(Neuro* neuro, int &pil){
     ai_name = current_chat.ai_name;
     persona = current_chat.personality;
 	std::string prompt, ai_answer;
-    for(auto message : current_chat.messages){
-        if(message.role == "user") std::cout << "[" << user.username << "]: ";
+    for (int i = 0; i<current_chat.total_messages; i++){
+        if(current_chat.messages[i].role == "user") std::cout << "[" << user.username << "]: ";
         else std::cout<<"["<<current_chat.ai_name<<"]: ";
-        chat_limiter(message.content, false);
+        chat_limiter(current_chat.messages[i].content, false);
         std::cout<<std::endl;
     }
 	do{
@@ -419,8 +446,11 @@ void history(Neuro* neuro){
                 break;
             }
             else if(choice == 1){
-                current_user.chats.erase(current_user.chats.begin() + pil);
+                //current_user.chats.erase(current_user.chats.begin() + pil);
                 current_user.total_chat--;
+                for (int i = pil-1; i<current_user.total_chat; i++){
+                    current_user.chats[i] = current_user.chats[i+1];
+                }
             }
             else break;
         }else return;
@@ -489,7 +519,7 @@ void new_chat(Neuro* neuro){
 	}while(prompt != "exit" && prompt != "Exit");
     if(neuro->id != -1){
         auto &user = neuro->get_current_user();
-        user.chats.push_back(Chat{});
+        //user.chats.push_back(Chat{});
         user.total_chat++;
     }
     std::cout<<"\nReturning to the previous menu..."<<std::endl;
@@ -718,8 +748,8 @@ int account(Neuro *neuro){
     std::string title_biggest;
     int biggest = 0;
     for (int i=0; i<current_user.total_chat; i++){
-        if (current_user.chats[i].messages.size() > biggest){
-            biggest = current_user.chats[i].messages.size();
+        if (current_user.chats[i].total_messages > biggest){
+            biggest = current_user.chats[i].total_messages;
             title_biggest = "[" + current_user.chats[i].ai_name + "] - " + current_user.chats[i].title;
         }
     }
@@ -740,8 +770,8 @@ int account(Neuro *neuro){
                 do{
                     bool success = true;
                     std:: string new_name = input("Enter new username: "); 
-                    for(auto user : neuro->users){
-                        if(user.username == new_name){
+                    for(int i=0; i<neuro->total_user; i++){
+                        if(neuro->users[i].username == new_name){
                             std::cout << "Username not available!" << std::endl;
                             success = false; break;
                         }
@@ -760,7 +790,10 @@ int account(Neuro *neuro){
                 system("pause");
             } else if (ans == 2) continue;
         } else if (result == 1){
-            neuro->users.erase(neuro->users.begin() + current_user.user_id);
+            //neuro->users.erase(neuro->users.begin() + current_user.user_id);
+            for (int i = current_user.user_id; i<neuro->total_user; i++){
+                neuro->users[i] = neuro->users[i+1];
+            }
             neuro->total_user--;
             system("cls"); banner("\033[0m");
             center_text("Account Deleted Successfully", 71);
@@ -814,12 +847,19 @@ void signup(Neuro* neuro){
             break;
         }while(true);
         success = true;
-		for(auto user : neuro->users){
+/*		for(auto user : neuro->users){
 			if(user.username == new_name){
 				std::cout << "Username not available!" << std::endl;
                 system("pause"); return;
 			}
 		}
+*/
+        for (int i = 0; i<neuro->total_user; i++){
+            if (new_name == neuro->users[i].username){
+                std::cout << "Username not available!" << std::endl;
+                system("pause"); return;
+            }
+        }
 		if (success){
             do{
                 new_password = input("Enter Password: ");
@@ -830,7 +870,8 @@ void signup(Neuro* neuro){
                 break;
             }while(true);
             neuro->id = neuro->total_user; //noted
-			neuro->users.push_back({new_name, new_password}); 
+//			neuro->users.push_back({new_name, new_password}); 
+            neuro->users[neuro->id] = {new_name, new_password};
             neuro->total_user++;
 			std::cout<<"Account created successfully!\n";
             system("pause");
@@ -970,7 +1011,7 @@ void login(Neuro* neuro){
     std::string password(char_password);
 
     std::cout<<std::endl;
-	for(int i=0; i<neuro->users.size(); i++){
+	for(int i=0; i<neuro->total_user; i++){
 		if(neuro->users[i].username == name){
 			if(neuro->users[i].password == password){
 				std::cout << "Login Successful!";
@@ -1037,6 +1078,12 @@ inline void loading(Neuro* neuro){
 
 inline int end_program(Neuro* neuro, int status_code = 0){
     system("pause");
+    delete[] neuro->users->chats->messages;
+    neuro->users->chats->messages = nullptr;
+    delete[] neuro->users->chats;
+    neuro->users->chats = nullptr;
+    delete[] neuro->users;
+    neuro->users = nullptr;
     delete neuro;
     neuro = nullptr;
     return status_code;
