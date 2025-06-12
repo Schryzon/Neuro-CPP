@@ -76,7 +76,7 @@ inline void center(std::string text, int length, std::string color, bool isOptio
 int show_menu(Neuro* neuro, std::string options[], int num_choice, std::string title);
 inline int* get_paddings(const std::string &text, int width);
 int confirm(std::string options[], int num_choice, std::string text);
-inline void chat_limiter(std::string& x, bool typing);
+inline void chat_limiter(char* x, bool typing);
 inline void center_text(std::string title, int length, bool selected);
 void display_history(std::string ai_name, std::string title, std::string color);
 int navigate_history(Neuro *neuro);
@@ -90,6 +90,9 @@ template <typename Array>
 inline void append(Array arr[], const Array &content, int *accumulator);
 template <typename Array>
 inline void erase(Array arr[], const int idx, const int max, int *accumulator);
+inline int str_length(std::string str);
+inline char* str_to_char(std::string str);
+
 
 //Core Formation
 nlohmann::json prep_payload(const Chat *chat);
@@ -127,9 +130,28 @@ inline void erase(Array arr[], const int idx, const int max, int *accumulator){
     (*accumulator)--;
 }
 
-inline void chat_limiter(std::string& text, bool typing = true){
+inline int str_length(std::string str){
+    int len = 0;
+    while(true){
+        if(str[len] == '\0') break;
+        len++;
+    }
+    return len;
+}
+
+inline char* str_to_char(std::string str){
+    int length = str_length(str);
+    char* result = new char[length+1];
+    for(int i = 0; i < length; i++){
+        result[i] = str[i];
+    }
+    result[length] = '\0';
+    return result;
+}
+
+inline void chat_limiter(char* text, bool typing = true){
     int count = 0;
-    for(size_t i = 0; i < text.size(); i++){
+    for(size_t i = 0; text[i] != '\0'; i++){
         std::cout << text[i];
         count++;
         if(count >= 70 && text[i] == ' '){
@@ -325,7 +347,9 @@ void continue_chat(Neuro* neuro, int &pil){
     for (int i = 0; i<current_chat.total_messages; i++){
         if(current_chat.messages[i].role == "user") std::cout << "[" << user.username << "]: ";
         else std::cout<<"["<<current_chat.ai_name<<"]: ";
-        chat_limiter(current_chat.messages[i].content, false);
+        char* text = str_to_char(current_chat.messages[i].content);
+        chat_limiter(text, false);
+        delete[] text;
         if(current_chat.messages[i].role == "user") std::cout<<std::endl;
         else line(73, '-'); // Check if it's AI's turn
     }
@@ -342,7 +366,9 @@ void continue_chat(Neuro* neuro, int &pil){
 		cursor_up;
         std::string display_ai_name = "["+ai_name+"]: ";
         std::cout<<display_ai_name;
-        chat_limiter(ai_answer);
+        char* text = str_to_char(ai_answer);
+        chat_limiter(text);
+        delete[] text;
         continue_message(neuro, pil, "model", ai_answer);
         create_title(neuro, &current_chat);
         line(73, '-');
@@ -355,11 +381,11 @@ void continue_chat(Neuro* neuro, int &pil){
 void display_history(std::string ai_name, std::string title, std::string color = ""){
     bool selected = (color != "");
     // Wowie, banyak banget
-    int name_box_left = (20 - ai_name.length()) / 2;
-    int name_box_right = (20 - ai_name.length()) % 2;
+    int name_box_left = (20 - str_length(ai_name)) / 2;
+    int name_box_right = (20 - str_length(ai_name)) % 2;
     int total_name = name_box_left + name_box_right;
-    int title_box_left = (53 - title.length()) / 2;
-    int title_box_right = (53 - title.length()) % 2;
+    int title_box_left = (53 - str_length(title)) / 2;
+    int title_box_right = (53 - str_length(title)) % 2;
     int total_title = title_box_left + title_box_right;
 
     // History selection
@@ -381,11 +407,11 @@ int navigate_history(Neuro *neuro){
         banner("\033[1;34m");
         center_text("Y O U R - H I S T O R Y", 71);
         std::string heading_ainame = "AI Name";
-        int ainame_left = (20 - heading_ainame.length()) / 2;
-        int ainame_right = (20 - heading_ainame.length()) % 2;
+        int ainame_left = (20 - str_length(heading_ainame)) / 2;
+        int ainame_right = (20 - str_length(heading_ainame)) % 2;
         std::string heading_title = "Title";
-        int title_left = (50 - heading_title.length()) / 2;
-        int title_right = (50 - heading_title.length()) % 2;
+        int title_left = (50 - str_length(heading_title)) / 2;
+        int title_right = (50 - str_length(heading_title)) % 2;
 
         // Table Heading
         line (73, '-');
@@ -521,7 +547,9 @@ void new_chat(Neuro* neuro){
 		cursor_up;
         std::string display_ai_name = "["+ai_name+"]: ";
         std::cout <<display_ai_name;
-        chat_limiter(ai_answer);
+        char* text = str_to_char(ai_answer);
+        chat_limiter(text);
+        delete[] text;
 	}while(prompt != "exit" && prompt != "Exit");
     if(neuro->id != -1){
         auto &user = neuro->get_current_user();
@@ -554,8 +582,8 @@ inline void progress_bar(int percent){
 }
 
 inline void center(std::string text, int length, std::string color = "", bool isOption = false) {
-    int padding = (length - text.length()) / 2;
-    int remain = (length - text.length()) % 2;
+    int padding = (length - str_length(text)) / 2;
+    int remain = (length - str_length(text)) % 2;
     int option_length = (length - 22) / 2; 
     int option_padding = length - 22 - option_length;
     if (isOption) {
@@ -618,7 +646,7 @@ int show_menu(Neuro* neuro, std::string options[], int num_choice, std::string t
 
 inline int* get_paddings(const std::string &text, int width = 73) {
     int* pads = new int[2]; 
-    int total = width - text.length();
+    int total = width - str_length(text);
     pads[0] = total / 2;
     pads[1] = total - pads[0];
     return pads;
@@ -853,13 +881,7 @@ void signup(Neuro* neuro){
             break;
         }while(true);
         success = true;
-/*		for(auto user : neuro->users){
-			if(user.username == new_name){
-				std::cout << "Username not available!" << std::endl;
-                system("pause"); return;
-			}
-		}
-*/
+
         for (int i = 0; i<neuro->total_user; i++){
             if (new_name == neuro->users[i].username){
                 std::cout << "Username not available!" << std::endl;
