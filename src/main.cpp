@@ -1104,7 +1104,7 @@ inline void loading(Neuro* neuro){
 }
 
 inline int end_program(Neuro* neuro, int status_code = 0){
-    system("pause");
+    if(status_code != 0) system("pause");
     delete[] neuro->users->chats->messages;
     neuro->users->chats->messages = nullptr;
     delete[] neuro->users->chats;
