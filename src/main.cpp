@@ -295,10 +295,10 @@ void continue_chat(Neuro* neuro, int &pil){
         if(message.role == "user") std::cout << "[" << user.username << "]: ";
         else std::cout<<"["<<current_chat.ai_name<<"]: ";
         chat_limiter(message.content, false);
-        std::cout<<std::endl;
+        if(message.role == "user") std::cout<<std::endl;
+        else line(73, '-');
     }
 	do{
-        line(73, '-');
         std::string display_name = "["+name+"]";
         std::string display_prompt = display_name +" (type 'exit' to go back): ";
 		prompt = input(display_prompt);
@@ -314,6 +314,7 @@ void continue_chat(Neuro* neuro, int &pil){
         chat_limiter(ai_answer);
         continue_message(neuro, pil, "model", ai_answer);
         create_title(neuro, &current_chat);
+        line(73, '-');
 	}while(prompt != "exit" && prompt != "Exit");
     std::cout<<"Returning to the previous menu..."<<std::endl;
     system("pause");
@@ -1036,7 +1037,7 @@ inline void loading(Neuro* neuro){
 }
 
 inline int end_program(Neuro* neuro, int status_code = 0){
-    system("pause");
+    if(!status_code == 0) system("pause");
     delete neuro;
     neuro = nullptr;
     return status_code;
